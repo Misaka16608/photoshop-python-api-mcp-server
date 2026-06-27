@@ -1,6 +1,6 @@
 # Photoshop MCP Server（C# 版）
 
-让 AI 助手（Claude Code、Claude Desktop 等）通过 stdio 协议操控 Adobe Photoshop 的 MCP 服务器。
+让 AI 助手（Claude Code、Claude Desktop 等）通过 stdio 协议操控 Adobe Photoshop 的 MCP 服务器。 | [English](README.md)
 
 > **这是 [loonghao/photoshop-python-api-mcp-server](https://github.com/loonghao/photoshop-python-api-mcp-server) 的完整 C# 重写版。**
 > 原 Python 版存在 COM 阻塞问题（GIL + 同步 COM 调用导致整个会话卡死）。

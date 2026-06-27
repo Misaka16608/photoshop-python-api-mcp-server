@@ -1,6 +1,6 @@
 # Photoshop MCP Server (C# Edition)
 
-MCP server that lets AI assistants (Claude Code, Claude Desktop, etc.) control Adobe Photoshop via the stdio protocol.
+MCP server that lets AI assistants (Claude Code, Claude Desktop, etc.) control Adobe Photoshop via the stdio protocol. | [简体中文](README_zh.md)
 
 > **This is a full C# rewrite** of [loonghao/photoshop-python-api-mcp-server](https://github.com/loonghao/photoshop-python-api-mcp-server).
 > The original Python version suffered from COM blocking issues (GIL + synchronous COM calls hang the entire session).
