@@ -1,161 +1,140 @@
-# Photoshop MCP Server
+# Photoshop MCP Server (C# Edition)
 
-[![PyPI Version](https://img.shields.io/pypi/v/photoshop-mcp-server.svg)](https://pypi.org/project/photoshop-mcp-server/)
-[![PyPI Downloads](https://img.shields.io/pypi/dm/photoshop-mcp-server.svg)](https://pypi.org/project/photoshop-mcp-server/)
-[![Build Status](https://github.com/loonghao/photoshop-python-api-mcp-server/actions/workflows/python-publish.yml/badge.svg)](https://github.com/loonghao/photoshop-python-api-mcp-server/actions/workflows/python-publish.yml)
-[![License](https://img.shields.io/github/license/loonghao/photoshop-python-api-mcp-server.svg)](https://github.com/loonghao/photoshop-python-api-mcp-server/blob/main/LICENSE)
-[![Python Version](https://img.shields.io/pypi/pyversions/photoshop-mcp-server.svg)](https://pypi.org/project/photoshop-mcp-server/)
-[![Platform](https://img.shields.io/badge/platform-windows-lightgrey.svg)](https://github.com/loonghao/photoshop-python-api-mcp-server)
-[![GitHub stars](https://img.shields.io/github/stars/loonghao/photoshop-python-api-mcp-server.svg)](https://github.com/loonghao/photoshop-python-api-mcp-server/stargazers)
-[![GitHub issues](https://img.shields.io/github/issues/loonghao/photoshop-python-api-mcp-server.svg)](https://github.com/loonghao/photoshop-python-api-mcp-server/issues)
-[![GitHub last commit](https://img.shields.io/github/last-commit/loonghao/photoshop-python-api-mcp-server.svg)](https://github.com/loonghao/photoshop-python-api-mcp-server/commits/main)
+MCP server that lets AI assistants (Claude Code, Claude Desktop, etc.) control Adobe Photoshop via the stdio protocol.
 
-> **⚠️ WINDOWS ONLY**: This server only works on Windows operating systems due to its dependency on Windows-specific COM interfaces.
+> **This is a full C# rewrite** of [loonghao/photoshop-python-api-mcp-server](https://github.com/loonghao/photoshop-python-api-mcp-server).
+> The original Python version suffered from COM blocking issues (GIL + synchronous COM calls hang the entire session).
+> This rewrite uses .NET native COM interop with a dedicated STA thread and per-call timeout protection.
 
-A Model Context Protocol (MCP) server for Photoshop integration using photoshop-python-api.
+## Why the rewrite?
 
-English | [简体中文](README_zh.md)
-
-## Overview
-
-This project provides a bridge between the Model Context Protocol (MCP) and Adobe Photoshop, allowing AI assistants and other MCP clients to control Photoshop programmatically.
-
-![Photoshop MCP Server Demo](assets/ps-mcp.gif)
-
-### What Can It Do?
-
-With this MCP server, AI assistants can:
-
-- Create, open, and save Photoshop documents
-- Create and manipulate layers (text, solid color, etc.)
-- Get information about the Photoshop session and documents
-- Apply effects and adjustments to images
-- And much more!
+| Problem in Python | Solved in C# |
+|---|---|
+| GIL + blocking COM → entire process freezes | Dedicated STA thread, MCP protocol layer unaffected |
+| Only `execute_javascript` had timeout | **Every** COM call has configurable timeout (`PS_MCP_TIMEOUT`, default 15s) |
+| `print()` leaks to stdout → corrupts JSON-RPC | All logging to stderr via `Microsoft.Extensions.Logging` |
+| Manual `register_tool(mcp, func, name)` | `[McpServerToolType]` attribute → auto-discovered by `WithToolsFromAssembly()` |
 
 ## Requirements
 
-### System Requirements
+- Windows only (COM-based Photoshop automation)
+- [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0) (for building)
+- Adobe Photoshop (CC2017–2024 tested)
 
-- **🔴 WINDOWS OS ONLY**: This server ONLY works on Windows operating systems
-  - The server relies on Windows-specific COM interfaces to communicate with Photoshop
-  - macOS and Linux are NOT supported and CANNOT run this software
+## Quick Start
 
-### Software Requirements
-
-- **Adobe Photoshop**: Must be installed locally (tested with versions CC2017 through 2024)
-- **Python**: Version 3.10 or higher
-
-## Installation
-
-> **Note**: Remember that this package only works on Windows systems.
+### 1. Build
 
 ```bash
-# Install using pip
-pip install photoshop-mcp-server
-
-# Or using uv
-uv install photoshop-mcp-server
+cd PhotoshopMcpServer
+dotnet publish src/PhotoshopMcpServer -c Release -r win-x64 --self-contained -o publish
 ```
 
-## MCP Host Configuration
+### 2. Configure MCP client
 
-This server is designed to work with various MCP hosts. The `PS_VERSION` environment variable is used to specify which Photoshop version to connect to (e.g., "2024", "2023", "2022", etc.).
-
-The recommended way to configure the server is using `uvx` as the command, which is the official standard format.
-
-### Standard Configuration (Recommended)
-
-Add the following to your MCP host configuration (works with Claude Desktop, Windsurf, Cline, and other MCP hosts):
+Add to your project's `.mcp.json` (or Claude Code / Claude Desktop settings):
 
 ```json
 {
   "mcpServers": {
     "photoshop": {
-      "command": "uvx",
-      "args": ["--python", "3.10", "photoshop-mcp-server"],
+      "command": "<absolute-path>\\PhotoshopMcpServer\\publish\\photoshop-mcp-server.exe",
       "env": {
-        "PS_VERSION": "2024"
+        "PS_MCP_TIMEOUT": "30"
       }
     }
   }
 }
 ```
 
-### Configuration Options
+### 3. Restart
 
-- **PS_VERSION**: Specify the Photoshop version to connect to (e.g., "2024", "2023", "2022", etc.)
-- **command**: Use `uvx` for the standard approach
-- **args**: Use `["photoshop-mcp-server"]` to run the Photoshop MCP server
-  - To specify a Python version explicitly, use `["--python", "3.10", "photoshop-mcp-server"]` (any version from 3.10 to 3.14 is supported)
+Restart your MCP client session to load the new server. The server connects to Photoshop on first tool invocation (lazy initialization).
 
-## Key Features
+## Available Tools
 
-### Available Resources
+### Document
 
-- `photoshop://info` - Get Photoshop application information
-- `photoshop://document/info` - Get active document information
-- `photoshop://document/layers` - Get layers in the active document
+| Tool | Description |
+|---|---|
+| `photoshop_create_document` | Create new document (width, height, name, mode) |
+| `photoshop_open_document` | Open existing file |
+| `photoshop_save_document` | Save as PSD / JPEG / PNG |
 
-### Available Tools
+### Layer
 
-The server provides various tools for controlling Photoshop:
+| Tool | Description |
+|---|---|
+| `photoshop_create_text_layer` | Create text layer with position, size, color |
+| `photoshop_create_solid_color_layer` | Create solid color fill layer |
+| `photoshop_get_layer_info` | Get layer details by name or index (bounds, opacity, text props, blend mode) |
+| `photoshop_delete_layer` | Delete layer by name or index |
+| `photoshop_modify_layer` | Rename, reposition, change text, toggle visibility, opacity, blend mode |
+| `photoshop_get_layer_thumbnail` | Export layer as base64 PNG thumbnail |
+| `photoshop_export_layer` | Export layer as PNG file to disk (with scale & trim options) |
 
-- **Document Tools**: Create, open, and save documents
-- **Layer Tools**: Create text layers, solid color layers, etc.
-- **Session Tools**: Get information about Photoshop session, active document, selection
+### Session
 
-## Example Prompts for AI Assistants
+| Tool | Description |
+|---|---|
+| `photoshop_get_session_info` | Photoshop version, documents list, preferences |
+| `photoshop_get_active_document_info` | Active document metadata via Action Manager |
+| `photoshop_get_selection_info` | Current selection bounds and area |
 
-Once configured in your MCP host, you can use the Photoshop MCP server in your AI assistant conversations. Here are some example prompts to get you started:
+### Resources
 
-### Basic Examples
+| URI | Description |
+|---|---|
+| `photoshop://info` | App version + active document status |
+| `photoshop://document/info` | Document name, dimensions, resolution, layer count |
+| `photoshop://document/layers` | Full hierarchical layer tree with properties |
 
-```text
-User: Can you create a new Photoshop document and add a text layer with "Hello World"?
+## Architecture
 
-AI Assistant: I'll create a new document and add the text layer for you.
-
-[The AI uses the Photoshop MCP server to:
-1. Create a new document using the `create_document` tool
-2. Add a text layer using the `create_text_layer` tool with the text "Hello World"]
-
-I've created a new Photoshop document and added a text layer with "Hello World".
+```
+PhotoshopMcpServer/
+├── Program.cs                         # Entry point, DI + MCP setup
+├── Services/
+│   └── PhotoshopBridge.cs             # STA-thread COM isolation + timeout
+├── Tools/
+│   ├── DocumentTools.cs               # Document CRUD
+│   ├── LayerTools.cs                  # Layer CRUD + export
+│   └── SessionTools.cs                # Session / selection info
+├── Resources/
+│   └── DocumentResources.cs           # 3 read-only resource endpoints
+└── Infrastructure/
+    └── JsHelpers.cs                   # ExtendScript JSON polyfill, string escaping
 ```
 
-### More Advanced Examples
+## Extending
 
-```text
-User: Open my latest PSD file and tell me how many layers it has.
+Adding a new tool requires no registration code — just create a class:
 
-AI Assistant: I'll check your latest PSD file and count the layers.
-
-[The AI uses the Photoshop MCP server to:
-1. Get information about open documents
-2. If no document is open, it can browse and open a PSD file
-3. Retrieve and analyze the layer structure]
-
-Your document has 12 layers, including 3 group folders and 2 adjustment layers.
+```csharp
+[McpServerToolType]
+public sealed class MyTool(PhotoshopBridge ps, ILogger<MyTool> logger)
+{
+    [McpServerTool(Name = "photoshop_my_tool")]
+    [Description("Description shown to AI clients.")]
+    public async Task<object> Execute(
+        [Description("Parameter description")] string param1,
+        int param2 = 42)
+    {
+        var script = $@"... Photoshop ExtendScript ...";
+        var result = await ps.ExecuteJavaScriptAsync(script);
+        return new { success = true, data = result };
+    }
+}
 ```
 
-```text
-User: Create a social media post with a gradient background and the text "Summer Sale" in a bold font.
-
-AI Assistant: I'll create that social media post for you.
-
-[The AI uses the Photoshop MCP server to:
-1. Create a new document with appropriate dimensions for social media
-2. Create a gradient fill layer with summer colors
-3. Add a text layer with "Summer Sale" in a bold font
-4. Position and style the text appropriately]
-
-I've created your social media post with a gradient background and bold "Summer Sale" text.
-```
+`WithToolsFromAssembly()` in `Program.cs` auto-discovers all `[McpServerToolType]` classes.
 
 ## License
 
-MIT
+MIT — same as the [original project](https://github.com/loonghao/photoshop-python-api-mcp-server).
 
-## Acknowledgements
+## Credits
 
-- [photoshop-python-api](https://github.com/loonghao/photoshop-python-api) - Python API for Photoshop
-- [Model Context Protocol](https://github.com/modelcontextprotocol/python-sdk) - MCP Python SDK
+- **Original Python version:** [loonghao/photoshop-python-api-mcp-server](https://github.com/loonghao/photoshop-python-api-mcp-server) by [Hal Long](https://github.com/loonghao)
+- **C# rewrite:** [Misaka16608](https://github.com/Misaka16608)
+- **MCP C# SDK:** [modelcontextprotocol/csharp-sdk](https://github.com/modelcontextprotocol/csharp-sdk) (Microsoft)

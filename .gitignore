@@ -1,23 +1,18 @@
-# Byte-compiled / optimized / DLL files
-*.py[cod]
+# .NET build output
+bin/
+obj/
+*.user
+*.suo
+*.cache
 
-# PyCharm project files
+# Visual Studio / Rider
+.vs/
 .idea/
 
 # Vim / Notepad++ temp files
 *~
 
-# Coverage output
-.coverage
-
-# Documentation build folders.
-docs/_*
-docs/src/*
-target/*
-/venv/
-/run_pycharm.bat
-/.nox/
-/build/
-/coverage.xml
-/.zip/
-__pycache__/
+# OS
+.DS_Store
+Thumbs.db
+publish/

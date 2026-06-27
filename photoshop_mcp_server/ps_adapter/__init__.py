@@ -1,1 +1,0 @@
-"""Photoshop adapter module."""

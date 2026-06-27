@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "photoshop": {
+      "command": "D:\\_Code\\photoshop-python-api-mcp-server\\PhotoshopMcpServer\\publish\\photoshop-mcp-server.exe",
+      "env": {
+        "PS_MCP_TIMEOUT": "30"
+      }
+    }
+  }
+}

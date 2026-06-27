@@ -1,161 +1,140 @@
-# Photoshop MCP 服务器
+# Photoshop MCP Server（C# 版）
 
-[![PyPI Version](https://img.shields.io/pypi/v/photoshop-mcp-server.svg)](https://pypi.org/project/photoshop-mcp-server/)
-[![PyPI Downloads](https://img.shields.io/pypi/dm/photoshop-mcp-server.svg)](https://pypi.org/project/photoshop-mcp-server/)
-[![Build Status](https://github.com/loonghao/photoshop-python-api-mcp-server/actions/workflows/python-publish.yml/badge.svg)](https://github.com/loonghao/photoshop-python-api-mcp-server/actions/workflows/python-publish.yml)
-[![License](https://img.shields.io/github/license/loonghao/photoshop-python-api-mcp-server.svg)](https://github.com/loonghao/photoshop-python-api-mcp-server/blob/main/LICENSE)
-[![Python Version](https://img.shields.io/pypi/pyversions/photoshop-mcp-server.svg)](https://pypi.org/project/photoshop-mcp-server/)
-[![Platform](https://img.shields.io/badge/platform-windows-lightgrey.svg)](https://github.com/loonghao/photoshop-python-api-mcp-server)
-[![GitHub stars](https://img.shields.io/github/stars/loonghao/photoshop-python-api-mcp-server.svg)](https://github.com/loonghao/photoshop-python-api-mcp-server/stargazers)
-[![GitHub issues](https://img.shields.io/github/issues/loonghao/photoshop-python-api-mcp-server.svg)](https://github.com/loonghao/photoshop-python-api-mcp-server/issues)
-[![GitHub last commit](https://img.shields.io/github/last-commit/loonghao/photoshop-python-api-mcp-server.svg)](https://github.com/loonghao/photoshop-python-api-mcp-server/commits/main)
+让 AI 助手（Claude Code、Claude Desktop 等）通过 stdio 协议操控 Adobe Photoshop 的 MCP 服务器。
 
-> **⚠️ 仅支持 Windows**: 此服务器仅适用于 Windows 操作系统，因为它依赖于 Windows 特有的 COM 接口。
+> **这是 [loonghao/photoshop-python-api-mcp-server](https://github.com/loonghao/photoshop-python-api-mcp-server) 的完整 C# 重写版。**
+> 原 Python 版存在 COM 阻塞问题（GIL + 同步 COM 调用导致整个会话卡死）。
+> 此重写版使用 .NET 原生 COM 互操作，配合专用 STA 线程和每次调用的超时保护。
 
-一个使用 photoshop-python-api 的 Photoshop 集成的模型上下文协议 (MCP) 服务器。
+## 为什么要重写？
 
-[English](README.md) | 简体中文
+| Python 版的问题 | C# 版的解决 |
+|---|---|
+| GIL + 阻塞 COM → 整个进程卡死 | 专用 STA 线程，MCP 协议层不受影响 |
+| 仅 `execute_javascript` 有超时 | **所有** COM 调用都有可配置超时（`PS_MCP_TIMEOUT`，默认 15 秒） |
+| `print()` 泄漏到 stdout → 破坏 JSON-RPC | 所有日志通过 `Microsoft.Extensions.Logging` 输出到 stderr |
+| 手动 `register_tool(mcp, func, name)` 注册 | `[McpServerToolType]` 特性 → `WithToolsFromAssembly()` 自动发现 |
 
-## 概述
+## 环境要求
 
-本项目提供了模型上下文协议 (MCP) 和 Adobe Photoshop 之间的桥梁，允许 AI 助手和其他 MCP 客户端以编程方式控制 Photoshop。
+- 仅 Windows（通过 COM 操控 Photoshop）
+- [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)（构建用）
+- Adobe Photoshop（已测试 CC2017–2024）
 
-![Photoshop MCP 服务器演示](assets/ps-mcp.gif)
+## 快速开始
 
-### 它能做什么？
-
-通过这个 MCP 服务器，AI 助手可以：
-
-- 创建、打开和保存 Photoshop 文档
-- 创建和操作图层（文本、纯色等）
-- 获取有关 Photoshop 会话和文档的信息
-- 对图像应用效果和调整
-- 以及更多功能！
-
-## 要求
-
-### 系统要求
-
-- **🔴 仅支持 Windows 系统**：此服务器**仅**适用于 Windows 操作系统
-  - 服务器依赖于 Windows 特有的 COM 接口与 Photoshop 通信
-  - macOS 和 Linux **不受支持**，**无法**运行此软件
-
-### 软件要求
-
-- **Adobe Photoshop**：必须在本地安装（已测试 CC2017 至 2024 版本）
-- **Python**：版本 3.10 或更高
-
-## 安装
-
-> **注意**：请记住，此软件包仅适用于 Windows 系统。
+### 1. 构建
 
 ```bash
-# 使用 pip 安装
-pip install photoshop-mcp-server
-
-# 或使用 uv
-uv install photoshop-mcp-server
+cd PhotoshopMcpServer
+dotnet publish src/PhotoshopMcpServer -c Release -r win-x64 --self-contained -o publish
 ```
 
-## MCP 主机配置
+### 2. 配置 MCP 客户端
 
-此服务器设计为与各种 MCP 主机一起工作。`PS_VERSION` 环境变量用于指定要连接的 Photoshop 版本（例如，"2024"、"2023"、"2022" 等）。
-
-推荐使用 `uvx` 作为命令来配置服务器，这是官方标准格式。
-
-### 标准配置（推荐）
-
-将以下内容添加到您的 MCP 主机配置中（适用于 Claude Desktop、Windsurf、Cline 和其他 MCP 主机）：
+在项目的 `.mcp.json`（或 Claude Code / Claude Desktop 设置）中添加：
 
 ```json
 {
   "mcpServers": {
     "photoshop": {
-      "command": "uvx",
-      "args": ["--python", "3.10", "photoshop-mcp-server"],
+      "command": "<绝对路径>\\PhotoshopMcpServer\\publish\\photoshop-mcp-server.exe",
       "env": {
-        "PS_VERSION": "2024"
+        "PS_MCP_TIMEOUT": "30"
       }
     }
   }
 }
 ```
 
-### 配置选项
+### 3. 重启
 
-- **PS_VERSION**：指定要连接的 Photoshop 版本（例如，"2024"、"2023"、"2022" 等）
-- **command**：使用 `uvx` 作为标准方法
-- **args**：使用 `["photoshop-mcp-server"]` 运行 Photoshop MCP 服务器
-  - 要显式指定 Python 版本，请使用 `["--python", "3.10", "photoshop-mcp-server"]`（支持从 3.10 到 3.14 的任何版本）
+重启 MCP 客户端会话以加载新的服务器。服务器在首次调用工具时才会连接 Photoshop（懒初始化）。
 
-## 主要功能
+## 可用工具
 
-### 可用资源
+### 文档
 
-- `photoshop://info` - 获取 Photoshop 应用程序信息
-- `photoshop://document/info` - 获取活动文档信息
-- `photoshop://document/layers` - 获取活动文档中的图层
+| 工具 | 说明 |
+|---|---|
+| `photoshop_create_document` | 新建文档（宽度、高度、名称、颜色模式） |
+| `photoshop_open_document` | 打开已有文件 |
+| `photoshop_save_document` | 保存为 PSD / JPEG / PNG |
 
-### 可用工具
+### 图层
 
-服务器提供了各种控制 Photoshop 的工具：
+| 工具 | 说明 |
+|---|---|
+| `photoshop_create_text_layer` | 创建文字图层（位置、字号、颜色） |
+| `photoshop_create_solid_color_layer` | 创建纯色填充图层 |
+| `photoshop_get_layer_info` | 按名称或索引获取图层详情（边界、透明度、文字属性、混合模式等） |
+| `photoshop_delete_layer` | 按名称或索引删除图层 |
+| `photoshop_modify_layer` | 修改图层：重命名、移动、改文字、显隐、透明度、混合模式 |
+| `photoshop_get_layer_thumbnail` | 导出图层为 base64 编码的 PNG 缩略图 |
+| `photoshop_export_layer` | 导出图层为磁盘上的 PNG 文件（支持缩放和裁切） |
 
-- **文档工具**：创建、打开和保存文档
-- **图层工具**：创建文本图层、纯色图层等
-- **会话工具**：获取有关 Photoshop 会话、活动文档、选择的信息
+### 会话
 
-## AI 助手提示词示例
+| 工具 | 说明 |
+|---|---|
+| `photoshop_get_session_info` | Photoshop 版本、文档列表、偏好设置 |
+| `photoshop_get_active_document_info` | 通过 Action Manager 获取当前文档元数据 |
+| `photoshop_get_selection_info` | 当前选区的边界与面积 |
 
-一旦在 MCP 主机中配置好，您就可以在 AI 助手对话中使用 Photoshop MCP 服务器。以下是一些帮助您入门的示例提示词：
+### 资源
 
-### 基础示例
+| URI | 说明 |
+|---|---|
+| `photoshop://info` | 应用版本 + 是否有活动文档 |
+| `photoshop://document/info` | 文档名称、尺寸、分辨率、图层数量 |
+| `photoshop://document/layers` | 完整图层树（含所有属性） |
 
-```text
-用户：能否创建一个新的 Photoshop 文档并添加一个带有"Hello World"的文本图层？
+## 架构
 
-AI 助手：我将为您创建一个新文档并添加文本图层。
-
-[AI 使用 Photoshop MCP 服务器：
-1. 使用 `create_document` 工具创建新文档
-2. 使用 `create_text_layer` 工具添加文本为"Hello World"的文本图层]
-
-我已创建了一个新的 Photoshop 文档并添加了一个带有"Hello World"的文本图层。
+```
+PhotoshopMcpServer/
+├── Program.cs                         # 入口，依赖注入 + MCP 配置
+├── Services/
+│   └── PhotoshopBridge.cs             # STA 线程 COM 隔离 + 超时控制
+├── Tools/
+│   ├── DocumentTools.cs               # 文档增删改查
+│   ├── LayerTools.cs                  # 图层增删改查 + 导出
+│   └── SessionTools.cs                # 会话 / 选区信息
+├── Resources/
+│   └── DocumentResources.cs           # 3 个只读资源端点
+└── Infrastructure/
+    └── JsHelpers.cs                   # ExtendScript JSON polyfill、字符串转义
 ```
 
-### 更高级的示例
+## 扩展
 
-```text
-用户：打开我最新的 PSD 文件并告诉我它有多少个图层。
+添加新工具无需任何注册代码——只需新建一个类：
 
-AI 助手：我将检查您最新的 PSD 文件并计算图层数量。
-
-[AI 使用 Photoshop MCP 服务器：
-1. 获取有关打开文档的信息
-2. 如果没有打开文档，它可以浏览并打开 PSD 文件
-3. 检索并分析图层结构]
-
-您的文档有 12 个图层，包括 3 个组文件夹和 2 个调整图层。
+```csharp
+[McpServerToolType]
+public sealed class MyTool(PhotoshopBridge ps, ILogger<MyTool> logger)
+{
+    [McpServerTool(Name = "photoshop_my_tool")]
+    [Description("展示给 AI 客户端的描述。")]
+    public async Task<object> Execute(
+        [Description("参数说明")] string param1,
+        int param2 = 42)
+    {
+        var script = $@"... Photoshop ExtendScript ...";
+        var result = await ps.ExecuteJavaScriptAsync(script);
+        return new { success = true, data = result };
+    }
+}
 ```
 
-```text
-用户：创建一个社交媒体帖子，带有渐变背景和粗体字"夏季促销"文本。
-
-AI 助手：我将为您创建该社交媒体帖子。
-
-[AI 使用 Photoshop MCP 服务器：
-1. 创建一个适合社交媒体的新文档
-2. 创建一个带有夏季颜色的渐变填充图层
-3. 添加一个带有"夏季促销"文本的粗体字图层
-4. 适当地定位和样式化文本]
-
-我已为您创建了带有渐变背景和粗体"夏季促销"文本的社交媒体帖子。
-```
+`Program.cs` 中的 `WithToolsFromAssembly()` 会自动发现所有标注了 `[McpServerToolType]` 的类。
 
 ## 许可证
 
-MIT
+MIT — 与[原项目](https://github.com/loonghao/photoshop-python-api-mcp-server)相同。
 
 ## 致谢
 
-- [photoshop-python-api](https://github.com/loonghao/photoshop-python-api) - Photoshop 的 Python API
-- [Model Context Protocol](https://github.com/modelcontextprotocol/python-sdk) - MCP Python SDK
+- **Python 原版：** [loonghao/photoshop-python-api-mcp-server](https://github.com/loonghao/photoshop-python-api-mcp-server)，作者 [Hal Long](https://github.com/loonghao)
+- **C# 重写：** [Misaka16608](https://github.com/Misaka16608)
+- **MCP C# SDK：** [modelcontextprotocol/csharp-sdk](https://github.com/modelcontextprotocol/csharp-sdk)（Microsoft）
