@@ -32,7 +32,6 @@ The human becomes the reviewer, not the bottleneck.
 | **Layer export** | Export any layer as PNG to disk, with scale and trim-to-content |
 | **Context queries** | Get Photoshop version, open documents, current selection bounds |
 | **Token-efficient queries** | Ask for exactly the fields you need (e.g. `fields="name,id,index,kind,visible,opacity,bounds,text,parentId"`) |
-| **Batch automation** | Generate multiple artboards, export icon sets, apply branding across layers |
 
 ### Verified workflow
 
