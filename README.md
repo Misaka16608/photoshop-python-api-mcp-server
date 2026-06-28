@@ -1,6 +1,6 @@
 # Photoshop MCP Server
 
-A Model Context Protocol (MCP) server that gives AI assistants — Claude Code, Claude Desktop, and other MCP clients — the ability to control Adobe Photoshop programmatically through natural language.
+A Model Context Protocol (MCP) server that gives AI assistants — Claude Code, Claude Desktop, and other MCP clients — the ability to control Adobe Photoshop programmatically through natural language. | [简体中文](README_zh.md)
 
 > **This is a C# port** of [loonghao/photoshop-python-api-mcp-server](https://github.com/loonghao/photoshop-python-api-mcp-server). The Python version can suffer from COM blocking under the GIL; this port uses .NET native COM interop with STA-thread isolation and per-call timeout to avoid that.
 
@@ -24,13 +24,13 @@ The human becomes the reviewer, not the bottleneck.
 
 | Capability | Example |
 |---|---|
-| **Document management** | Create, open, save PSD/PNG/JPEG |
-| **Layer creation** | Text layers with font/size/color, solid color fills |
+| **Document management** | Create new PSD documents |
+| **Layer creation** | Text layers, solid color fills |
 | **Layer inspection** | Read full layer tree with bounds, text properties, blend modes, locked states |
 | **Layer modification** | Rename, reposition, change text, toggle visibility, adjust opacity, switch blend mode |
 | **Layer deletion** | Remove layers by name or index |
 | **Layer export** | Export any layer as PNG to disk, with scale and trim-to-content |
-| **Context queries** | Get Photoshop version, open documents, current selection bounds |
+| **Context queries** | Get session info, active document metadata, selection bounds |
 | **Token-efficient queries** | Ask for exactly the fields you need (e.g. `fields="name,id,index,kind,visible,opacity,bounds,text,parentId"`) |
 
 ### Verified workflow
@@ -120,8 +120,6 @@ Restart your MCP client session. The server connects to Photoshop lazily — on 
 | Tool | Description | Key parameters |
 |---|---|---|
 | `photoshop_create_document` | Create a new document | `width`, `height`, `name`, `mode` (rgb/cmyk/grayscale/bitmap/lab) |
-| `photoshop_open_document` | Open an existing file | `file_path` |
-| `photoshop_save_document` | Save active document | `file_path`, `format` (psd/jpg/png) |
 
 ### Layer tools
 
