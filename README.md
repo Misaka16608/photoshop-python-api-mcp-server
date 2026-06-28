@@ -30,7 +30,6 @@ The human becomes the reviewer, not the bottleneck.
 | **Layer modification** | Rename, reposition, change text, toggle visibility, adjust opacity, switch blend mode |
 | **Layer deletion** | Remove layers by name or index |
 | **Layer export** | Export any layer as PNG to disk, with scale and trim-to-content |
-| **Context queries** | Get session info, active document metadata, selection bounds |
 | **Token-efficient queries** | Ask for exactly the fields you need (e.g. `fields="name,id,index,kind,visible,opacity,bounds,text,parentId"`) |
 
 ### Verified workflow
@@ -132,14 +131,6 @@ Restart your MCP client session. The server connects to Photoshop lazily — on 
 | `photoshop_delete_layer` | Delete a layer | `layer_name` or `layer_index` |
 | `photoshop_modify_layer` | Modify layer properties | `new_name`, `text`, `x`, `y`, `visible`, `opacity`, `blend_mode` |
 | `photoshop_export_layer` | Export layer as PNG | `output_path`, `layer_name`/`layer_index`, `scale`, `trim` |
-
-### Session tools
-
-| Tool | Description |
-|---|---|
-| `photoshop_get_session_info` | Photoshop version, document list, ruler/type unit preferences |
-| `photoshop_get_active_document_info` | Document metadata via Action Manager (name, size, resolution, mode, bit depth, layer count, file path) |
-| `photoshop_get_selection_info` | Current selection bounds (left/top/right/bottom), width, height, area |
 
 ### Resources (read-only endpoints)
 
